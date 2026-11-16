@@ -1,163 +1,236 @@
+
+# Import Path to handle file and folder paths
 from pathlib import Path
+
+# Import Pandas to read and manipulate the dataset
 import pandas as pd
 
-# Read the dataset shipped with this practical; no network access is required.
+# Get the current directory and locate the CSV dataset
 csv_path = Path.cwd() / "sales_data_sample.csv"
+
+# Check whether the dataset file exists
 if not csv_path.is_file():
+    # Raise an error if the dataset is not found
     raise FileNotFoundError(
         f"Local dataset not found: {csv_path.resolve()}. "
         "Place sales_data_sample.csv in the notebook's working directory."
     )
 
+# Display the dataset file location
 print("Using local dataset:", csv_path.resolve())
 
+# Read the CSV dataset using latin-1 encoding
 df = pd.read_csv(
     csv_path,
     encoding="latin-1"
 )
 
+# Display the number of rows and columns
 print("Shape:", df.shape)
+
+# Display all column names
 print("\nColumns:")
 print(df.columns.tolist())
 
+# Display the first five rows of the dataset
 print("\nFirst 5 rows:")
 print(df.head())
 
+# Import SimpleImputer to handle missing values
 from sklearn.impute import SimpleImputer
+
+# Import StandardScaler to standardize numerical data
 from sklearn.preprocessing import StandardScaler
+
+# Import NumPy for numerical operations
 import numpy as np
 
+# Select the numerical columns required for clustering
 features = [
     "QUANTITYORDERED",
     "PRICEEACH",
     "SALES"
 ]
 
+# Select the required columns and convert their values into numeric format
+# Invalid values are converted into NaN
 X = df[features].apply(
     pd.to_numeric,
     errors="coerce"
 )
 
+# Replace positive and negative infinity with missing values (NaN)
 X = X.replace(
     [np.inf, -np.inf],
     np.nan
 )
 
-# Fill missing values with median
+# Fill missing values using the median of each column
 X = SimpleImputer(
     strategy="median"
 ).fit_transform(X)
 
-# Standardize
+# Standardize the data so all features have a similar scale
 X = StandardScaler().fit_transform(X)
 
+# Display the shape of the prepared features
 print("Features prepared:", X.shape)
 
+# Import KMeans clustering algorithm
 from sklearn.cluster import KMeans
+
+# Import Matplotlib for graph plotting
 import matplotlib.pyplot as plt
 
+# Create values of k from 1 to 10
 k_values = np.arange(1, 11)
+
+# Create an empty list to store inertia values
 inertia = []
 
+# Repeat the process for each value of k
 for candidate_k in k_values:
+
+    # Create the K-Means model with the current number of clusters
     model = KMeans(
-        n_clusters=int(candidate_k),
-        n_init=10,
-        random_state=42
+        n_clusters=int(candidate_k),  # Number of clusters
+        n_init=10,                    # Run 10 initializations
+        random_state=42               # Get reproducible results
     )
+
+    # Train the K-Means model on the prepared data
     model.fit(X)
+
+    # Store the inertia value of the current model
     inertia.append(model.inertia_)
 
+# Plot the number of clusters against inertia
 plt.plot(
     k_values,
     inertia,
-    "o-"
+    "o-"  # Display circle markers connected by a line
 )
 
+# Set the x-axis label
 plt.xlabel("Number of Clusters (k)")
+
+# Set the y-axis label
 plt.ylabel("Inertia")
+
+# Set the graph title
 plt.title("Elbow Method")
+
+# Display the Elbow Method graph
 plt.show()
 
-# Estimate the elbow as the point farthest from the line joining both ends.
+# Convert the inertia list into a NumPy array
 inertia_values = np.asarray(inertia)
+
+# Calculate the length of the line joining the first and last points
 line_length = np.hypot(
     k_values[-1] - k_values[0],
     inertia_values[-1] - inertia_values[0]
 )
+
+# Calculate the perpendicular distance of each point from that line
 distances = np.abs(
     (k_values[-1] - k_values[0]) * (inertia_values - inertia_values[0])
     - (inertia_values[-1] - inertia_values[0]) * (k_values - k_values[0])
 ) / line_length
+
+# Find the k value having the maximum distance (estimated elbow point)
 elbow_k = int(k_values[np.argmax(distances)])
+
+# Display the k value selected by the Elbow Method
 print("Elbow method selected k =", elbow_k)
 
-# The elbow curve above determines the cluster count used below.
+# Display the selected number of clusters
 print("Selected number of clusters:", elbow_k)
 
+# Store the selected number of clusters in variable k
 k = elbow_k
+
+# Display the final k value used for clustering
 print("Using k selected by the elbow method:", k)
 
+# Create the final K-Means model using the selected k value
 kmeans = KMeans(
     n_clusters=k,
     n_init=10,
     random_state=42
 )
 
+# Fit the model and predict cluster labels for each data point
 km_labels = kmeans.fit_predict(X)
 
+# Display the number of data points in each K-Means cluster
 print("K-Means cluster sizes:")
 print(
-    pd.Series(km_labels)
-    .value_counts()
-    .sort_index()
+    pd.Series(km_labels)  # Convert cluster labels into a Pandas Series
+    .value_counts()       # Count the number of points in each cluster
+    .sort_index()         # Sort the cluster labels
 )
 
+# Import AgglomerativeClustering for hierarchical clustering
 from sklearn.cluster import AgglomerativeClustering
 
+# Create the hierarchical clustering model
 hierarchy = AgglomerativeClustering(
-    n_clusters=k,
-    linkage="ward"
+    n_clusters=k,  # Use the same number of clusters selected by elbow method
+    linkage="ward" # Ward method minimizes within-cluster variance
 )
 
+# Fit the model and assign cluster labels to each data point
 hc_labels = hierarchy.fit_predict(X)
 
+# Display the number of data points in each hierarchical cluster
 print("Hierarchical cluster sizes:")
 print(
-    pd.Series(hc_labels)
-    .value_counts()
-    .sort_index()
+    pd.Series(hc_labels)  # Convert labels into a Pandas Series
+    .value_counts()       # Count points in each cluster
+    .sort_index()         # Sort cluster labels
 )
 
+# Create a new DataFrame containing the selected original features
 result = df[
     ["QUANTITYORDERED", "PRICEEACH", "SALES"]
 ].copy()
 
+# Add K-Means cluster labels to the result DataFrame
 result["KMeans_cluster"] = km_labels
+
+# Add hierarchical cluster labels to the result DataFrame
 result["Hierarchical_cluster"] = hc_labels
 
+# Display the first five rows with their cluster labels
 print(result.head())
 
+# Display the summary of K-Means clusters
 print("K-Means Summary:")
 print(
-    result.groupby("KMeans_cluster")[features]
-    .agg(["count", "mean"])
-    .round(2)
+    result.groupby("KMeans_cluster")[features]  # Group data by K-Means cluster
+    .agg(["count", "mean"])                     # Calculate count and mean
+    .round(2)                                   # Round values to 2 decimal places
 )
 
+# Display the summary of hierarchical clusters
 print("\nHierarchical Summary:")
 print(
-    result.groupby("Hierarchical_cluster")[features]
-    .agg(["count", "mean"])
-    .round(2)
+    result.groupby("Hierarchical_cluster")[features]  # Group data by cluster
+    .agg(["count", "mean"])                           # Calculate count and mean
+    .round(2)                                         # Round values to 2 decimals
 )
 
+# Import PCA for dimensionality reduction
 from sklearn.decomposition import PCA
 
+# Create PCA to reduce the three features into two dimensions
 pca = PCA(n_components=2)
 
+# Transform the original data into two principal components
 coords = pca.fit_transform(X)
 
+# Display the total variance represented by the two components
 print(
     "Variance represented:",
     round(
@@ -166,6 +239,9 @@ print(
     )
 )
 
+# Create a scatter plot of the K-Means clusters
+# First component is on the x-axis and second on the y-axis
+# Different colors represent different clusters
 plt.scatter(
     coords[:, 0],
     coords[:, 1],
@@ -174,14 +250,22 @@ plt.scatter(
     s=14
 )
 
+# Set the x-axis label
 plt.xlabel("Principal Component 1")
+
+# Set the y-axis label
 plt.ylabel("Principal Component 2")
+
+# Set the graph title with the selected number of clusters
 plt.title(
     f"K-Means Clusters (k={k})"
 )
 
+# Display the K-Means clustering graph
 plt.show()
 
+# Create a scatter plot of the hierarchical clusters
+# Different colors represent different hierarchical clusters
 plt.scatter(
     coords[:, 0],
     coords[:, 1],
@@ -190,39 +274,60 @@ plt.scatter(
     s=14
 )
 
+# Set the x-axis label
 plt.xlabel("Principal Component 1")
+
+# Set the y-axis label
 plt.ylabel("Principal Component 2")
+
+# Set the graph title with the selected number of clusters
 plt.title(
     f"Hierarchical Clusters (k={k})"
 )
 
+# Display the hierarchical clustering graph
 plt.show()
 
+# Import dendrogram and linkage for hierarchical tree visualization
 from scipy.cluster.hierarchy import dendrogram, linkage
 
-# Use maximum 120 samples for readable dendrogram
+# Use a maximum of 120 samples to make the dendrogram readable
+
+# Create a random number generator with a fixed seed
 rng = np.random.default_rng(42)
 
+# Randomly select up to 120 data point indexes without repetition
 sample_index = rng.choice(
     len(X),
     size=min(120, len(X)),
     replace=False
 )
 
+# Perform hierarchical clustering on the selected samples
+# Ward method minimizes within-cluster variance
 tree = linkage(
     X[sample_index],
     method="ward"
 )
 
+# Create a figure with width 10 and height 5
 plt.figure(figsize=(10, 5))
 
+# Draw the dendrogram using the calculated linkage information
+# no_labels=True hides individual sample labels
 dendrogram(
     tree,
     no_labels=True
 )
 
+# Set the x-axis label
 plt.xlabel("Sampled Order Lines")
+
+# Set the y-axis label
 plt.ylabel("Ward Merge Distance")
+
+# Set the graph title
 plt.title("Hierarchical Dendrogram")
 
-plt.show()    
+# Display the dendrogram
+plt.show()
