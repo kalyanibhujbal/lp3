@@ -1,168 +1,353 @@
+# Import Path to work with file and folder paths
 from pathlib import Path
+
+# Import pandas for reading and handling dataset
 import pandas as pd
 
+
+# Get the current working directory and create the path of emails.csv
 csv_path = Path.cwd() / "emails.csv"
+
+# Check whether the dataset file exists
 if not csv_path.is_file():
+
+    # Raise an error if the dataset file is not found
     raise FileNotFoundError(f"Local dataset not found: {csv_path.resolve()}")
 
+# Display the complete path of the dataset
 print("Dataset:", csv_path.resolve())
 
+# Read the emails.csv dataset into a DataFrame
 df = pd.read_csv("emails.csv")
 
+# Display the number of rows and columns
 print("Shape:", df.shape)
+
+# Display the first five rows of the dataset
 print(df.head())
+
+# Display all column names as a list
 print(df.columns.tolist())
 
-# Remove duplicate rows
+
+# Remove duplicate rows from the dataset
 df = df.drop_duplicates()
 
-# Separate target and features
+
+# Separate the target column from the input features
+
+# Store Prediction column as the target variable
+# Convert target values into integers (0 or 1)
 y = df["Prediction"].astype(int)
 
+# Remove Email No. and Prediction columns from the input features
+# Email No. is an identifier and Prediction is the target column
 X = df.drop(columns=["Email No.", "Prediction"])
 
-# Convert features to numbers
+
+# Convert all feature values into numerical format
 X = X.apply(pd.to_numeric)
 
+# Display the number of features
 print("Features:", X.shape)
+
+# Display the count of each target class
+# 0 represents Normal email and 1 represents Spam email
 print("Classes:")
 print(y.value_counts())
 
+
+# Import train_test_split to divide data into training and testing sets
 from sklearn.model_selection import train_test_split
+
+# Import csr_matrix to convert data into sparse matrix format
 from scipy.sparse import csr_matrix
 
+
+# Convert the feature DataFrame into a sparse matrix
+# Sparse matrix stores non-zero values efficiently and saves memory
 X = csr_matrix(X.values)
+
+# Convert the target Series into a NumPy array
 y = y.values
 
+
+# Divide the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y,
-    test_size=0.20,
-    random_state=42,
-    stratify=y
+    X, y,                         # Input features and target values
+    test_size=0.20,               # 20% data for testing and 80% for training
+    random_state=42,              # Ensures reproducible splitting
+    stratify=y                    # Maintains class proportions in both sets
 )
 
+# Display the shape of training data
 print("Train:", X_train.shape)
+
+# Display the shape of testing data
 print("Test:", X_test.shape)
 
+
+# Import Pipeline to combine multiple processing steps
 from sklearn.pipeline import Pipeline
+
+# Import TfidfTransformer to convert feature values into TF-IDF weighted values
 from sklearn.feature_extraction.text import TfidfTransformer
+
+# Import KNeighborsClassifier for K-Nearest Neighbors classification
 from sklearn.neighbors import KNeighborsClassifier
 
+
+# Create a machine learning pipeline for KNN
 knn = Pipeline([
+
+    # Apply TF-IDF transformation to give importance to feature values
     ("tfidf", TfidfTransformer(sublinear_tf=True)),
+
+    # Apply KNN classification
     ("model", KNeighborsClassifier(
-        n_neighbors=5,
-        metric="cosine",
-        algorithm="brute"
+
+        n_neighbors=5,             # Consider the five nearest neighbors
+        metric="cosine",           # Use cosine distance to measure similarity
+        algorithm="brute"          # Compare each test sample with training samples
     ))
 ])
 
+
+# Train the KNN pipeline using training data
 knn.fit(X_train, y_train)
+
+# Predict spam or normal email labels for testing data
 knn_pred = knn.predict(X_test)
 
+# Display completion message
 print("KNN completed!")
 
+
+# Import LinearSVC for Support Vector Machine classification
 from sklearn.svm import LinearSVC
 
+
+# Create a machine learning pipeline for SVM
 svm = Pipeline([
+
+    # Apply TF-IDF transformation to the input features
     ("tfidf", TfidfTransformer(sublinear_tf=True)),
+
+    # Apply Linear Support Vector Machine classification
     ("model", LinearSVC(C=1.0, random_state=42))
 ])
 
+
+# Train the SVM pipeline using training data
 svm.fit(X_train, y_train)
+
+# Predict spam or normal email labels for testing data
 svm_pred = svm.predict(X_test)
 
+# Display completion message
 print("SVM completed!")
 
+
+# Import evaluation metrics to measure model performance
 from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score
+    accuracy_score,       # Measures overall correct predictions
+    precision_score,      # Measures how many predicted spam emails are actually spam
+    recall_score,         # Measures how many actual spam emails are detected
+    f1_score              # Harmonic mean of precision and recall
 )
 
+
+# Create an empty list to store model evaluation results
 results = []
 
+
+# Evaluate both KNN and SVM predictions
 for name, pred in [
-    ("KNN", knn_pred),
-    ("SVM", svm_pred)
+    ("KNN", knn_pred),     # KNN model predictions
+    ("SVM", svm_pred)      # SVM model predictions
 ]:
+
+    # Calculate and store evaluation metrics for each model
     results.append([
-        name,
-        accuracy_score(y_test, pred),
-        precision_score(y_test, pred, zero_division=0),
-        recall_score(y_test, pred, zero_division=0),
-        f1_score(y_test, pred, zero_division=0)
+
+        name,                                      # Model name
+
+        accuracy_score(y_test, pred),              # Calculate accuracy
+
+        precision_score(y_test, pred, zero_division=0),  # Calculate precision
+
+        recall_score(y_test, pred, zero_division=0),      # Calculate recall
+
+        f1_score(y_test, pred, zero_division=0)           # Calculate F1 score
     ])
 
+
+# Convert the results list into a pandas DataFrame
 results = pd.DataFrame(
     results,
+
+    # Assign column names to the results DataFrame
     columns=["Model", "Accuracy", "Precision", "Recall", "F1"]
 )
 
+# Display the performance comparison of both models
 print(results)
 
+
+# Import ConfusionMatrixDisplay to visualize classification results
 from sklearn.metrics import ConfusionMatrixDisplay
+
+# Import matplotlib for plotting graphs
 import matplotlib.pyplot as plt
 
+
+# Display confusion matrix for KNN predictions
 ConfusionMatrixDisplay.from_predictions(
-    y_test, knn_pred,
+    y_test, knn_pred,                     # Actual and predicted values
+
+    # Set class labels for the confusion matrix
     display_labels=["Not spam", "Spam"],
+
+    # Set the color scheme of the confusion matrix
     cmap="Blues"
 )
+
+# Set the title of the KNN confusion matrix
 plt.title("KNN Confusion Matrix")
+
+# Display the confusion matrix
 plt.show()
 
+
+# Display confusion matrix for SVM predictions
 ConfusionMatrixDisplay.from_predictions(
-    y_test, svm_pred,
+    y_test, svm_pred,                     # Actual and predicted values
+
+    # Set class labels for the confusion matrix
     display_labels=["Not spam", "Spam"],
+
+    # Set the color scheme of the confusion matrix
     cmap="Blues"
 )
+
+# Set the title of the SVM confusion matrix
 plt.title("SVM Confusion Matrix")
+
+# Display the confusion matrix
 plt.show()
 
+
+# Create a bar graph to compare evaluation metrics of both models
 results.set_index("Model").plot(
-    kind="bar",
-    figsize=(8, 5),
-    ylim=(0, 1.05)
+
+    kind="bar",                 # Create a bar chart
+    figsize=(8, 5),             # Set the figure size
+    ylim=(0, 1.05)              # Set Y-axis limits from 0 to 1.05
 )
 
+# Set the Y-axis label
 plt.ylabel("Score")
+
+# Set the graph title
 plt.title("KNN vs SVM")
+
+# Keep model names horizontal
 plt.xticks(rotation=0)
+
+# Display the comparison graph
 plt.show()
 
-# Binary class definitions: 0 = Normal (Not Spam), 1 = Abnormal (Spam)
+
+# Define the meaning of binary target classes
+# 0 represents Normal (Not Spam) email
+# 1 represents Abnormal (Spam) email
 class_names = {0: "Normal (Not Spam)", 1: "Abnormal (Spam)"}
+
+# Display the class mapping
 print("Class mapping:", class_names)
 
+
+# Import classification_report to display detailed evaluation metrics
+# Import confusion_matrix to calculate TN, FP, FN and TP
+# Import balanced_accuracy_score to calculate balanced accuracy
 from sklearn.metrics import classification_report, confusion_matrix, balanced_accuracy_score
 
+
+# Create dictionaries to store specificity values for each model
 specificity_scores = {}
+
+# Create dictionaries to store balanced accuracy values for each model
 balanced_accuracy_scores = {}
 
+
+# Calculate detailed evaluation metrics for KNN and SVM
 for name, predictions in [("KNN", knn_pred), ("SVM", svm_pred)]:
+
+    # Display the model name
     print(f"\n{name} classification report:")
+
+    # Generate the classification report
     print(classification_report(
-        y_test,
-        predictions,
-        labels=[0, 1],
+
+        y_test,                         # Actual class labels
+        predictions,                    # Predicted class labels
+
+        labels=[0, 1],                   # Specify class order
+
+        # Display meaningful class names
         target_names=[class_names[0], class_names[1]],
+
+        # Avoid division errors when a metric has no predicted samples
         zero_division=0
     ))
 
-    tn, fp, fn, tp = confusion_matrix(y_test, predictions, labels=[0, 1]).ravel()
+    # Calculate confusion matrix values
+    # tn = True Negative
+    # fp = False Positive
+    # fn = False Negative
+    # tp = True Positive
+    tn, fp, fn, tp = confusion_matrix(
+        y_test,
+        predictions,
+        labels=[0, 1]
+    ).ravel()
+
+    # Calculate specificity
+    # Specificity measures how correctly normal emails are identified
+    # If there are no actual normal emails, return 0.0
     specificity_scores[name] = tn / (tn + fp) if (tn + fp) else 0.0
+
+    # Calculate balanced accuracy
+    # It is the average recall of both classes
     balanced_accuracy_scores[name] = balanced_accuracy_score(y_test, predictions)
+
+    # Display specificity up to four decimal places
     print(f"Specificity (correctly identified normal emails): {specificity_scores[name]:.4f}")
 
+
+# Add specificity values to the results DataFrame
+# map() matches each model name with its specificity score
 results["Specificity"] = results["Model"].map(specificity_scores)
+
+# Add balanced accuracy values to the results DataFrame
 results["Balanced Accuracy"] = results["Model"].map(balanced_accuracy_scores)
+
+# Display the final model comparison heading
 print("\nFinal model comparison:")
+
+# Sort the results by F1 score in descending order
+# The model with the highest F1 score appears first
 print(results.sort_values("F1", ascending=False).to_string(index=False))
 
+
+# Find the model having the highest F1 score
 best_model = results.loc[results["F1"].idxmax()]
+
+# Display the best model based on Spam-class F1 score
 print(f"\nBest model by Spam-class F1 score: {best_model['Model']}")
+
+# Display the accuracy, precision, recall, F1 score and specificity
+# Format all metric values to four decimal places
 print(
     f"Accuracy={best_model['Accuracy']:.4f}, "
     f"Spam precision={best_model['Precision']:.4f}, "
