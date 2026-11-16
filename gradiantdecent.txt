@@ -1,39 +1,96 @@
+
+# Import NumPy library for numerical operations
 import numpy as np
+
+# Import Matplotlib library for plotting graphs
 import matplotlib.pyplot as plt
 
+
+# Define the function whose minimum value we want to find
 f = lambda x: (x + 3) ** 2
+
+# Define the derivative of the function
+# Derivative of (x + 3)^2 is 2(x + 3)
 d = lambda x: 2 * (x + 3)
 
 
+# Initialize x = 2 (starting point)
+# lr = 0.1 (learning rate)
+# tol = 1e-6 (tolerance or stopping condition)
 x, lr, tol = 2, 0.1, 1e-6
+
+# Create a list to store all x values during iterations
 path = [x]
 
 
+# Repeat the gradient descent process maximum 100 times
 for i in range(100):
+
+    # Calculate the new x value using the gradient descent formula
+    # New x = Old x - Learning Rate * Derivative
     new_x = x - lr * d(x)
+
+    # Display iteration number, new x value and corresponding y value
+    # round() is used to display values up to 6 decimal places
     print("Iteration:", i + 1, "x =", round(new_x, 6), "y =", round(f(new_x), 6))
+
+    # Store the new x value in the path list
     path.append(new_x)
 
+    # Check whether the difference between old x and new x is less than tolerance
+    # If yes, stop the iteration because the minimum is approximately reached
     if abs(new_x - x) < tol:
+
+        # Update x with the final new x value
         x = new_x
+
+        # Exit the loop
         break
+
+    # Update x for the next iteration
     x = new_x
 
 
+# Display the final x value where the minimum occurs
 print("\nLocal minimum occurs at x =", round(x, 6))
+
+# Display the minimum value of the function
 print("Minimum value of y =", round(f(x), 6))
 
 
+# Generate 100 equally spaced x values between -8 and 4
+# These values are used to draw the function graph
 X = np.linspace(-8, 4, 100)
 
 
+# Plot the function curve
+# label specifies the name displayed in the graph legend
 plt.plot(X, f(X), label="y = (x + 3)^2")
+
+# Mark the starting point (2, 25) on the graph
 plt.scatter(2, f(2), label="Starting Point (2,25)")
+
+# Mark the minimum point on the graph
 plt.scatter(x, f(x), label="Minimum Point (-3,0)")
+
+# Plot the gradient descent path using circles and dashed lines
+# f(v) calculates the corresponding y value for each x value
 plt.plot(path, [f(v) for v in path], "o--", label="Gradient Descent Path")
+
+# Set the x-axis label
 plt.xlabel("x")
+
+# Set the y-axis label
 plt.ylabel("y")
+
+# Set the title of the graph
 plt.title("Gradient Descent for y = (x + 3)^2")
+
+# Display the legend containing all plot labels
 plt.legend()
+
+# Display grid lines on the graph
 plt.grid()
+
+# Display the final graph
 plt.show()
