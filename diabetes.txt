@@ -1,47 +1,81 @@
+# Import Path to work with file and folder paths
 from pathlib import Path
+
+# Import pandas for reading and handling dataset
 import pandas as pd
 
+
+# Get the current working directory and create the path of diabetes.csv
 csv_path = Path.cwd() / "diabetes.csv"
+
+# Check whether the dataset file exists
 if not csv_path.is_file():
+
+    # Raise an error if the dataset is not found
     raise FileNotFoundError(f"Local dataset not found: {csv_path.resolve()}")
 
+# Display the complete path of the dataset
 print("Dataset:", csv_path.resolve())
 
+# Read the diabetes.csv file into a DataFrame
 df = pd.read_csv("diabetes.csv")
 
+# Display the number of rows and columns
 print("Shape:", df.shape)
+
+# Display all column names
 print("\nColumns:", list(df.columns))
+
+# Display the first five rows of the dataset
 print("\nFirst 5 rows:")
 print(df.head())
 
+
+# Import numpy for numerical operations
 import numpy as np
 
-# Remove duplicate rows
+
+# Remove duplicate rows from the dataset
+# copy() creates a separate copy of the cleaned DataFrame
 df = df.drop_duplicates().copy()
 
-# Separate target
+
+# Separate the target column from the dataset
+# Convert Outcome values into numeric integers
+# 0 = No diabetes and 1 = Diabetes
 y = pd.to_numeric(df["Outcome"]).astype(int)
 
-# Separate features
+
+# Separate input features by removing the Outcome column
 X = df.drop(columns=["Outcome"])
 
-# Remove ID columns if present
+
+# Remove ID columns if they are present
+# ID columns do not help in predicting diabetes
 X = X.drop(
     columns=[c for c in X.columns
              if c.lower() in ["id", "patientid"]],
     errors="ignore"
 )
 
-# Convert features to numeric
+
+# Convert all input features into numerical format
 X = X.apply(pd.to_numeric)
 
-# Replace infinity with missing values
+
+# Replace positive and negative infinity values with missing values
 X = X.replace([np.inf, -np.inf], np.nan)
 
+
+# Display the number of input features
 print("Features:", X.shape)
+
+# Display the count of each target class
 print("\nClass counts:")
 print(y.value_counts())
 
+
+# Define columns where zero values may represent missing measurements
 zero_columns = [
     "Glucose",
     "BloodPressure",
@@ -50,116 +84,218 @@ zero_columns = [
     "BMI"
 ]
 
+
+# Loop through each column in the zero_columns list
 for col in zero_columns:
+
+    # Check whether the column exists in the dataset
     if col in X.columns:
+
+        # Replace zero values with NaN (missing values)
+        # because zero is generally not a valid measurement for these features
         X.loc[X[col] == 0, col] = np.nan
 
+
+# Display missing values after replacing invalid zeros
 print("Missing values after treating zeros:")
 print(X.isnull().sum())
 
+
+# Import train_test_split to divide data into training and testing sets
 from sklearn.model_selection import train_test_split
 
+
+# Split the dataset into training and testing data
 X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.20,
-    stratify=y,
-    random_state=42
+    X,                       # Input features
+    y,                       # Target variable
+    test_size=0.20,           # 20% data for testing and 80% for training
+    stratify=y,               # Maintain the same class proportion
+    random_state=42            # Ensure reproducible splitting
 )
 
+
+# Display the number of training rows
 print("Training rows:", len(X_train))
+
+# Display the number of testing rows
 print("Testing rows:", len(X_test))
 
+
+# Import Pipeline to combine preprocessing and model steps
 from sklearn.pipeline import Pipeline
+
+# Import SimpleImputer to handle missing values
 from sklearn.impute import SimpleImputer
+
+# Import StandardScaler to standardize feature values
 from sklearn.preprocessing import StandardScaler
+
+# Import KNeighborsClassifier for KNN classification
 from sklearn.neighbors import KNeighborsClassifier
 
+
+# Create a machine learning pipeline
 model = Pipeline([
+
+    # Replace missing values using the median of each feature
     ("imputer", SimpleImputer(strategy="median")),
+
+    # Standardize features so they have comparable scales
     ("scaler", StandardScaler()),
+
+    # Apply K-Nearest Neighbors classification
     ("knn", KNeighborsClassifier(
-        n_neighbors=5,
-        metric="euclidean"
+
+        n_neighbors=5,           # Consider the five nearest neighbors
+        metric="euclidean"       # Use Euclidean distance to measure similarity
     ))
 ])
 
+
+# Train the complete pipeline using training data
+# It performs imputation, scaling and model training
 model.fit(X_train, y_train)
 
+
+# Predict diabetes outcomes for the testing data
 prediction = model.predict(X_test)
 
+
+# Display model training completion message
 print("KNN model trained successfully!")
 
+
+# Import evaluation metrics to measure model performance
 from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    confusion_matrix,
-    classification_report
+
+    accuracy_score,          # Calculate overall prediction accuracy
+    precision_score,         # Calculate precision
+    recall_score,            # Calculate recall
+    f1_score,                # Calculate F1 score
+    confusion_matrix,        # Generate confusion matrix
+    classification_report    # Generate detailed classification report
 )
 
+
+# Calculate the accuracy of the model
 accuracy = accuracy_score(y_test, prediction)
+
+# Calculate error rate by subtracting accuracy from 1
 error_rate = 1 - accuracy
 
+
+# Calculate precision for the positive class (diabetes = 1)
 precision = precision_score(
     y_test, prediction,
-    pos_label=1,
-    zero_division=0
+    pos_label=1,             # Consider class 1 as the positive class
+    zero_division=0          # Return 0 if division by zero occurs
 )
 
+
+# Calculate recall for the positive class (diabetes = 1)
 recall = recall_score(
     y_test, prediction,
-    pos_label=1,
-    zero_division=0
+    pos_label=1,             # Consider class 1 as the positive class
+    zero_division=0          # Return 0 if division by zero occurs
 )
 
+
+# Calculate F1 score for the positive class
 f1 = f1_score(
     y_test, prediction,
-    pos_label=1,
-    zero_division=0
+    pos_label=1,             # Consider class 1 as the positive class
+    zero_division=0          # Return 0 if division by zero occurs
 )
 
+
+# Display accuracy
 print("Accuracy :", accuracy)
+
+# Display error rate
 print("Error Rate:", error_rate)
+
+# Display precision
 print("Precision:", precision)
+
+# Display recall
 print("Recall   :", recall)
+
+# Display F1 score
 print("F1 Score :", f1)
 
+
+# Generate confusion matrix
+# labels=[0, 1] fixes the order of the two classes
 cm = confusion_matrix(
     y_test,
     prediction,
     labels=[0, 1]
 )
 
+
+# Extract four values from the confusion matrix
+# tn = True Negative
+# fp = False Positive
+# fn = False Negative
+# tp = True Positive
 tn, fp, fn, tp = cm.ravel()
 
+
+# Display the confusion matrix in a readable format
 print("\nConfusion Matrix:")
+
+# Display column headings
 print("                 Predicted 0   Predicted 1")
+
+# Display actual class 0 values
 print(f"Actual 0 (no)    {tn:11d}   {fp:11d}")
+
+# Display actual class 1 values
 print(f"Actual 1 (yes)   {fn:11d}   {tp:11d}")
 
+
+# Generate a detailed classification report
 print(
     classification_report(
-        y_test,
-        prediction,
-        labels=[0, 1],
+        y_test,                  # Actual target values
+        prediction,              # Predicted target values
+        labels=[0, 1],            # Specify class order
+
+        # Assign readable names to both classes
         target_names=["Outcome 0", "Outcome 1"],
+
+        # Avoid division errors if a class has no predicted samples
         zero_division=0
     )
 )
 
+
+# Import ConfusionMatrixDisplay to visualize confusion matrix
 from sklearn.metrics import ConfusionMatrixDisplay
+
+# Import matplotlib for displaying graphs
 import matplotlib.pyplot as plt
 
+
+# Create and display the confusion matrix visualization
 ConfusionMatrixDisplay(
-    cm,
+
+    cm,                          # Use the previously calculated confusion matrix
+
+    # Assign labels to the two classes
     display_labels=["No diabetes (0)", "Diabetes (1)"]
+
 ).plot(
-    cmap="Blues",
-    colorbar=False,
-    values_format="d"
+
+    cmap="Blues",                # Set blue color scheme
+    colorbar=False,               # Hide the color bar
+    values_format="d"             # Display values as integers
 )
 
+
+# Set the title of the confusion matrix
 plt.title("KNN Confusion Matrix")
+
+# Display the confusion matrix graph
 plt.show()
