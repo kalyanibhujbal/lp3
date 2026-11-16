@@ -1,0 +1,39 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+f = lambda x: (x + 3) ** 2
+d = lambda x: 2 * (x + 3)
+
+
+x, lr, tol = 2, 0.1, 1e-6
+path = [x]
+
+
+for i in range(100):
+    new_x = x - lr * d(x)
+    print("Iteration:", i + 1, "x =", round(new_x, 6), "y =", round(f(new_x), 6))
+    path.append(new_x)
+
+    if abs(new_x - x) < tol:
+        x = new_x
+        break
+    x = new_x
+
+
+print("\nLocal minimum occurs at x =", round(x, 6))
+print("Minimum value of y =", round(f(x), 6))
+
+
+X = np.linspace(-8, 4, 100)
+
+
+plt.plot(X, f(X), label="y = (x + 3)^2")
+plt.scatter(2, f(2), label="Starting Point (2,25)")
+plt.scatter(x, f(x), label="Minimum Point (-3,0)")
+plt.plot(path, [f(v) for v in path], "o--", label="Gradient Descent Path")
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("Gradient Descent for y = (x + 3)^2")
+plt.legend()
+plt.grid()
+plt.show()

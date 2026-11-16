@@ -1,0 +1,272 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+df = pd.read_csv("uber.csv")
+
+print(df.head())
+print("Shape:", df.shape)
+print(df.info())
+
+df.drop(columns=['Unnamed: 0', 'key'], errors='ignore', inplace=True)
+
+print(df.isnull().sum())
+
+df.dropna(inplace=True)
+df.drop_duplicates(inplace=True)
+
+print("Shape after cleaning:", df.shape)
+
+df['pickup_datetime'] = pd.to_datetime(
+    df['pickup_datetime'],
+    errors='coerce'
+)
+
+df.dropna(subset=['pickup_datetime'], inplace=True)
+
+df['hour'] = df['pickup_datetime'].dt.hour
+df['day'] = df['pickup_datetime'].dt.day
+df['month'] = df['pickup_datetime'].dt.month
+df['weekday'] = df['pickup_datetime'].dt.weekday
+
+def haversine(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(
+        np.radians,
+        [lat1, lon1, lat2, lon2]
+    )
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(lat1) * np.cos(lat2)
+        * np.sin(dlon / 2) ** 2
+    )
+
+    return 6371 * 2 * np.arcsin(np.sqrt(a))
+
+
+df['distance_km'] = haversine(
+    df['pickup_latitude'],
+    df['pickup_longitude'],
+    df['dropoff_latitude'],
+    df['dropoff_longitude']
+)
+
+print(df[['fare_amount', 'distance_km']].head())
+
+print(df.describe())
+
+plt.boxplot(df['fare_amount'])
+plt.title("Fare Amount Outliers")
+plt.ylabel("Fare Amount")
+plt.show()
+
+plt.boxplot(df['distance_km'])
+plt.title("Distance Outliers")
+plt.ylabel("Distance (km)")
+plt.show()
+
+df = df[
+    (df['fare_amount'] > 0) &
+    (df['passenger_count'] > 0) &
+    (df['passenger_count'] <= 6) &
+    (df['pickup_latitude'].between(-90, 90)) &
+    (df['dropoff_latitude'].between(-90, 90)) &
+    (df['pickup_longitude'].between(-180, 180)) &
+    (df['dropoff_longitude'].between(-180, 180)) &
+    (df['distance_km'] > 0)
+]
+
+def remove_outliers(data, column):
+    Q1 = data[column].quantile(0.25)
+    Q3 = data[column].quantile(0.75)
+    IQR = Q3 - Q1
+
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+
+    return data[
+        (data[column] >= lower) &
+        (data[column] <= upper)
+    ]
+
+
+initial_count = len(df)
+df = remove_outliers(df, 'fare_amount')
+after_fare_count = len(df)
+df = remove_outliers(df, 'distance_km')
+final_count = len(df)
+
+print(f"Rows before IQR filtering: {initial_count}")
+print(f"Fare outliers removed: {initial_count - after_fare_count}")
+print(f"Distance outliers removed: {after_fare_count - final_count}")
+print(f"Rows after IQR filtering: {final_count}")
+
+corr_columns = [
+    'fare_amount',
+    'distance_km',
+    'passenger_count',
+    'hour',
+    'day',
+    'month',
+    'weekday'
+]
+
+correlation = df[corr_columns].corr()
+
+print(correlation)
+
+plt.figure(figsize=(8, 6))
+
+plt.imshow(
+    correlation,
+    cmap='coolwarm',
+    interpolation='nearest'
+)
+
+plt.colorbar()
+
+plt.xticks(
+    range(len(corr_columns)),
+    corr_columns,
+    rotation=45
+)
+
+plt.yticks(
+    range(len(corr_columns)),
+    corr_columns
+)
+
+plt.title("Correlation Matrix")
+plt.tight_layout()
+
+plt.show()
+
+features = [
+    'pickup_longitude',
+    'pickup_latitude',
+    'dropoff_longitude',
+    'dropoff_latitude',
+    'passenger_count',
+    'distance_km',
+    'hour',
+    'day',
+    'month',
+    'weekday'
+]
+
+X = df[features]
+y = df['fare_amount']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+print("Training samples:", len(X_train))
+print("Testing samples:", len(X_test))
+
+lr = LinearRegression()
+
+lr.fit(X_train, y_train)
+
+lr_pred = lr.predict(X_test)
+
+lr_r2 = r2_score(y_test, lr_pred)
+lr_rmse = np.sqrt(mean_squared_error(y_test, lr_pred))
+lr_mae = mean_absolute_error(y_test, lr_pred)
+
+print("Linear Regression")
+print("R2 :", lr_r2)
+print("RMSE :", lr_rmse)
+print("MAE :", lr_mae)
+
+rf = RandomForestRegressor(
+    n_estimators=100,
+    max_depth=15,
+    random_state=42,
+    n_jobs=-1
+)
+
+rf.fit(X_train, y_train)
+
+rf_pred = rf.predict(X_test)
+
+rf_r2 = r2_score(y_test, rf_pred)
+rf_rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
+rf_mae = mean_absolute_error(y_test, rf_pred)
+
+print("Random Forest Regression")
+print("R2 :", rf_r2)
+print("RMSE :", rf_rmse)
+print("MAE :", rf_mae)
+
+results = pd.DataFrame({
+    'Model': ['Linear Regression', 'Random Forest'],
+    'R2': [lr_r2, rf_r2],
+    'RMSE': [lr_rmse, rf_rmse],
+    'MAE': [lr_mae, rf_mae]
+})
+
+print(results)
+
+plt.bar(results['Model'], results['R2'])
+plt.title("R2 Score Comparison")
+plt.ylabel("R2 Score")
+plt.show()
+
+plt.bar(results['Model'], results['RMSE'])
+plt.title("RMSE Comparison")
+plt.ylabel("RMSE")
+plt.show()
+
+plt.scatter(
+    y_test[:500],
+    rf_pred[:500],
+    alpha=0.5
+)
+
+plt.xlabel("Actual Fare")
+plt.ylabel("Predicted Fare")
+plt.title("Actual vs Predicted Uber Fare")
+
+plt.show()
+
+distance = haversine(
+    40.73,
+    -73.99,
+    40.76,
+    -73.97
+)
+
+new_ride = pd.DataFrame([{
+    'pickup_longitude': -73.99,
+    'pickup_latitude': 40.73,
+    'dropoff_longitude': -73.97,
+    'dropoff_latitude': 40.76,
+    'passenger_count': 2,
+    'distance_km': distance,
+    'hour': 18,
+    'day': 15,
+    'month': 6,
+    'weekday': 2
+}])
+
+predicted_fare = rf.predict(new_ride)
+
+print("Predicted Fare = $", round(predicted_fare[0], 2))
+
+print(results.sort_values('RMSE').to_string(index=False))
+best_model = results.loc[results['RMSE'].idxmin()]
+print(f"\nBest model by RMSE: {best_model['Model']}")
+print(f"R2: {best_model['R2']:.4f}")
+print(f"RMSE: ${best_model['RMSE']:.2f}")
+print(f"MAE: ${best_model['MAE']:.2f}")

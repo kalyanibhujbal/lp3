@@ -1,0 +1,135 @@
+from pathlib import Path
+import pandas as pd
+
+csv_path = Path.cwd() / "Churn_Modelling.csv"
+if not csv_path.is_file():
+    raise FileNotFoundError(f"Local dataset not found: {csv_path.resolve()}")
+
+print("Dataset:", csv_path.resolve())
+
+df = pd.read_csv(csv_path)
+
+df.head()
+
+print("Shape:", df.shape)
+
+print("\nColumns:")
+print(df.columns)
+
+print("\nInformation:")
+df.info()
+
+X = df.drop(columns=["RowNumber", "CustomerId", "Surname", "Exited"])
+y = df["Exited"]
+
+categorical_features = ["Geography", "Gender"]
+numeric_features = [column for column in X.columns if column not in categorical_features]
+
+print("Features shape:", X.shape)
+print("Target shape:", y.shape)
+print("Target distribution (0 = stayed, 1 = exited):")
+print(y.value_counts(normalize=True).rename("proportion"))
+
+# Keep categorical columns as-is; the pipeline encodes them after the split.
+X.head()
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.20,
+    random_state=42,
+    stratify=y
+)
+
+print("Training data:", X_train.shape)
+print("Testing data:", X_test.shape)
+
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+# Fit scaling/encoding only on training data to prevent test-set leakage.
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("numeric", StandardScaler(), numeric_features),
+        ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical_features),
+    ]
+)
+
+from sklearn.neural_network import MLPClassifier
+from sklearn.pipeline import Pipeline
+
+# Improvements: regularization, early stopping, a validation split, and
+# leakage-safe preprocessing in one reproducible pipeline.
+model = Pipeline(
+    steps=[
+        ("preprocessor", preprocessor),
+        ("classifier", MLPClassifier(
+            hidden_layer_sizes=(32, 16),
+            activation="relu", # rectifiedd linear unit (ReLU) activation function
+            solver="adam", #adam optimization algorithm
+            alpha=0.001,
+            batch_size=32,
+            max_iter=500,
+            early_stopping=True,
+            validation_fraction=0.15,
+            n_iter_no_change=15,
+            random_state=42,
+        )),
+    ]
+)
+
+print(model)
+
+model.fit(X_train, y_train)
+
+print("Neural network trained successfully!")
+print("Training iterations:", model.named_steps["classifier"].n_iter_)
+
+y_pred = model.predict(X_test)
+
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print(f"Accuracy: {accuracy:.4f} ({accuracy * 100:.2f}%)")
+print(f"Balanced accuracy: {balanced_accuracy_score(y_test, y_pred):.4f}")
+
+from sklearn.metrics import confusion_matrix
+
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+
+print("Confusion Matrix:")
+print(cm)
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(6, 5))
+
+plt.imshow(cm)
+
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+
+plt.xticks([0, 1], ["Stayed", "Exited"])
+plt.yticks([0, 1], ["Stayed", "Exited"])
+
+for i in range(2):
+    for j in range(2):
+        plt.text(
+            j,
+            i,
+            cm[i, j],
+            ha="center",
+            va="center"
+        )
+
+plt.colorbar()
+plt.show()
+
+# Churn is the minority class, so inspect its recall and F1-score as well as accuracy.
+from sklearn.metrics import classification_report
+
+print(classification_report(y_test, y_pred))

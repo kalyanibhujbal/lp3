@@ -1,0 +1,165 @@
+from pathlib import Path
+import pandas as pd
+
+csv_path = Path.cwd() / "diabetes.csv"
+if not csv_path.is_file():
+    raise FileNotFoundError(f"Local dataset not found: {csv_path.resolve()}")
+
+print("Dataset:", csv_path.resolve())
+
+df = pd.read_csv("diabetes.csv")
+
+print("Shape:", df.shape)
+print("\nColumns:", list(df.columns))
+print("\nFirst 5 rows:")
+print(df.head())
+
+import numpy as np
+
+# Remove duplicate rows
+df = df.drop_duplicates().copy()
+
+# Separate target
+y = pd.to_numeric(df["Outcome"]).astype(int)
+
+# Separate features
+X = df.drop(columns=["Outcome"])
+
+# Remove ID columns if present
+X = X.drop(
+    columns=[c for c in X.columns
+             if c.lower() in ["id", "patientid"]],
+    errors="ignore"
+)
+
+# Convert features to numeric
+X = X.apply(pd.to_numeric)
+
+# Replace infinity with missing values
+X = X.replace([np.inf, -np.inf], np.nan)
+
+print("Features:", X.shape)
+print("\nClass counts:")
+print(y.value_counts())
+
+zero_columns = [
+    "Glucose",
+    "BloodPressure",
+    "SkinThickness",
+    "Insulin",
+    "BMI"
+]
+
+for col in zero_columns:
+    if col in X.columns:
+        X.loc[X[col] == 0, col] = np.nan
+
+print("Missing values after treating zeros:")
+print(X.isnull().sum())
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.20,
+    stratify=y,
+    random_state=42
+)
+
+print("Training rows:", len(X_train))
+print("Testing rows:", len(X_test))
+
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+
+model = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler()),
+    ("knn", KNeighborsClassifier(
+        n_neighbors=5,
+        metric="euclidean"
+    ))
+])
+
+model.fit(X_train, y_train)
+
+prediction = model.predict(X_test)
+
+print("KNN model trained successfully!")
+
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report
+)
+
+accuracy = accuracy_score(y_test, prediction)
+error_rate = 1 - accuracy
+
+precision = precision_score(
+    y_test, prediction,
+    pos_label=1,
+    zero_division=0
+)
+
+recall = recall_score(
+    y_test, prediction,
+    pos_label=1,
+    zero_division=0
+)
+
+f1 = f1_score(
+    y_test, prediction,
+    pos_label=1,
+    zero_division=0
+)
+
+print("Accuracy :", accuracy)
+print("Error Rate:", error_rate)
+print("Precision:", precision)
+print("Recall   :", recall)
+print("F1 Score :", f1)
+
+cm = confusion_matrix(
+    y_test,
+    prediction,
+    labels=[0, 1]
+)
+
+tn, fp, fn, tp = cm.ravel()
+
+print("\nConfusion Matrix:")
+print("                 Predicted 0   Predicted 1")
+print(f"Actual 0 (no)    {tn:11d}   {fp:11d}")
+print(f"Actual 1 (yes)   {fn:11d}   {tp:11d}")
+
+print(
+    classification_report(
+        y_test,
+        prediction,
+        labels=[0, 1],
+        target_names=["Outcome 0", "Outcome 1"],
+        zero_division=0
+    )
+)
+
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+ConfusionMatrixDisplay(
+    cm,
+    display_labels=["No diabetes (0)", "Diabetes (1)"]
+).plot(
+    cmap="Blues",
+    colorbar=False,
+    values_format="d"
+)
+
+plt.title("KNN Confusion Matrix")
+plt.show()
