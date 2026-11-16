@@ -1,56 +1,108 @@
+# Import pandas for data handling and DataFrame operations
 import pandas as pd
+
+# Import numpy for mathematical and numerical operations
 import numpy as np
+
+# Import matplotlib for creating graphs and visualizations
 import matplotlib.pyplot as plt
+
+# Import train_test_split to divide data into training and testing sets
 from sklearn.model_selection import train_test_split
+
+# Import Linear Regression algorithm
 from sklearn.linear_model import LinearRegression
+
+# Import Random Forest Regression algorithm
 from sklearn.ensemble import RandomForestRegressor
+
+# Import evaluation metrics to measure model performance
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
+
+# Read the Uber dataset from the CSV file
 df = pd.read_csv("uber.csv")
 
+# Display the first five rows of the dataset
 print(df.head())
+
+# Display the number of rows and columns in the dataset
 print("Shape:", df.shape)
+
+# Display column names, data types, and non-null values
 print(df.info())
 
+
+# Remove unnecessary columns from the dataset
+# errors='ignore' avoids an error if these columns do not exist
 df.drop(columns=['Unnamed: 0', 'key'], errors='ignore', inplace=True)
 
+# Count missing values in each column
 print(df.isnull().sum())
 
+# Remove rows containing missing values
 df.dropna(inplace=True)
+
+# Remove duplicate rows from the dataset
 df.drop_duplicates(inplace=True)
 
+# Display the dataset size after cleaning
 print("Shape after cleaning:", df.shape)
 
+
+# Convert pickup_datetime column into pandas datetime format
+# Invalid date values will be converted into NaT
 df['pickup_datetime'] = pd.to_datetime(
     df['pickup_datetime'],
     errors='coerce'
 )
 
+# Remove rows where pickup_datetime could not be converted
 df.dropna(subset=['pickup_datetime'], inplace=True)
 
+# Extract the pickup hour from the datetime
 df['hour'] = df['pickup_datetime'].dt.hour
+
+# Extract the day of the month
 df['day'] = df['pickup_datetime'].dt.day
+
+# Extract the month from the datetime
 df['month'] = df['pickup_datetime'].dt.month
+
+# Extract the weekday (Monday = 0 and Sunday = 6)
 df['weekday'] = df['pickup_datetime'].dt.weekday
 
+
+# Define a function to calculate the geographical distance
+# between pickup and dropoff locations using the Haversine formula
 def haversine(lat1, lon1, lat2, lon2):
+
+    # Convert latitude and longitude values from degrees to radians
     lat1, lon1, lat2, lon2 = map(
         np.radians,
         [lat1, lon1, lat2, lon2]
     )
 
+    # Calculate the difference between latitudes
     dlat = lat2 - lat1
+
+    # Calculate the difference between longitudes
     dlon = lon2 - lon1
 
+    # Apply the Haversine formula
     a = (
         np.sin(dlat / 2) ** 2
         + np.cos(lat1) * np.cos(lat2)
         * np.sin(dlon / 2) ** 2
     )
 
+    # Calculate and return the distance in kilometers
+    # 6371 is the approximate radius of Earth in kilometers
     return 6371 * 2 * np.arcsin(np.sqrt(a))
 
 
+# Calculate the distance between pickup and dropoff locations
+# using their latitude and longitude values
 df['distance_km'] = haversine(
     df['pickup_latitude'],
     df['pickup_longitude'],
@@ -58,56 +110,121 @@ df['distance_km'] = haversine(
     df['dropoff_longitude']
 )
 
+# Display fare amount and calculated distance for first five rows
 print(df[['fare_amount', 'distance_km']].head())
 
+# Display statistical information such as mean, minimum, maximum and quartiles
 print(df.describe())
 
+
+# Create a boxplot to identify outliers in fare_amount
 plt.boxplot(df['fare_amount'])
+
+# Set the title of the graph
 plt.title("Fare Amount Outliers")
+
+# Set the label for the Y-axis
 plt.ylabel("Fare Amount")
+
+# Display the boxplot
 plt.show()
 
+
+# Create a boxplot to identify outliers in distance_km
 plt.boxplot(df['distance_km'])
+
+# Set the title of the graph
 plt.title("Distance Outliers")
+
+# Set the label for the Y-axis
 plt.ylabel("Distance (km)")
+
+# Display the boxplot
 plt.show()
 
+
+# Remove invalid records using conditions
 df = df[
+    # Fare amount must be greater than zero
     (df['fare_amount'] > 0) &
+
+    # Passenger count must be greater than zero
     (df['passenger_count'] > 0) &
+
+    # Passenger count must not exceed six
     (df['passenger_count'] <= 6) &
+
+    # Pickup latitude must be within the valid range
     (df['pickup_latitude'].between(-90, 90)) &
+
+    # Dropoff latitude must be within the valid range
     (df['dropoff_latitude'].between(-90, 90)) &
+
+    # Pickup longitude must be within the valid range
     (df['pickup_longitude'].between(-180, 180)) &
+
+    # Dropoff longitude must be within the valid range
     (df['dropoff_longitude'].between(-180, 180)) &
+
+    # Distance must be greater than zero
     (df['distance_km'] > 0)
 ]
 
+
+# Define a function to remove outliers using the IQR method
 def remove_outliers(data, column):
+
+    # Calculate the first quartile (25th percentile)
     Q1 = data[column].quantile(0.25)
+
+    # Calculate the third quartile (75th percentile)
     Q3 = data[column].quantile(0.75)
+
+    # Calculate the Interquartile Range
     IQR = Q3 - Q1
 
+    # Calculate the lower limit for detecting outliers
     lower = Q1 - 1.5 * IQR
+
+    # Calculate the upper limit for detecting outliers
     upper = Q3 + 1.5 * IQR
 
+    # Return only rows whose values are within the limits
     return data[
         (data[column] >= lower) &
         (data[column] <= upper)
     ]
 
 
+# Store the number of rows before removing outliers
 initial_count = len(df)
+
+# Remove outliers from the fare_amount column
 df = remove_outliers(df, 'fare_amount')
+
+# Store the number of rows after fare outlier removal
 after_fare_count = len(df)
+
+# Remove outliers from the distance_km column
 df = remove_outliers(df, 'distance_km')
+
+# Store the final number of rows after removing outliers
 final_count = len(df)
 
+# Display the number of rows before IQR filtering
 print(f"Rows before IQR filtering: {initial_count}")
+
+# Display how many fare outliers were removed
 print(f"Fare outliers removed: {initial_count - after_fare_count}")
+
+# Display how many distance outliers were removed
 print(f"Distance outliers removed: {after_fare_count - final_count}")
+
+# Display the number of rows remaining after IQR filtering
 print(f"Rows after IQR filtering: {final_count}")
 
+
+# Select numerical columns for correlation analysis
 corr_columns = [
     'fare_amount',
     'distance_km',
@@ -118,36 +235,50 @@ corr_columns = [
     'weekday'
 ]
 
+# Calculate the correlation between selected columns
 correlation = df[corr_columns].corr()
 
+# Display the correlation matrix
 print(correlation)
 
+
+# Set the size of the correlation matrix figure
 plt.figure(figsize=(8, 6))
 
+# Display the correlation matrix as a color-based image
 plt.imshow(
     correlation,
     cmap='coolwarm',
     interpolation='nearest'
 )
 
+# Display the color scale for correlation values
 plt.colorbar()
 
+# Set column names on the X-axis
 plt.xticks(
     range(len(corr_columns)),
     corr_columns,
     rotation=45
 )
 
+# Set column names on the Y-axis
 plt.yticks(
     range(len(corr_columns)),
     corr_columns
 )
 
+# Set the title of the correlation graph
 plt.title("Correlation Matrix")
+
+# Adjust spacing to prevent labels from overlapping
 plt.tight_layout()
 
+# Display the correlation matrix
 plt.show()
 
+
+# Select input features that will be used for prediction
 features = [
     'pickup_longitude',
     'pickup_latitude',
@@ -161,112 +292,193 @@ features = [
     'weekday'
 ]
 
+# Store the selected input features in X
 X = df[features]
+
+# Store fare_amount as the target variable in y
 y = df['fare_amount']
 
+
+# Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42
+    X,                   # Input features
+    y,                   # Target variable
+    test_size=0.2,       # 20% data for testing and 80% for training
+    random_state=42      # Fix random state to get repeatable results
 )
 
+# Display the number of training samples
 print("Training samples:", len(X_train))
+
+# Display the number of testing samples
 print("Testing samples:", len(X_test))
 
+
+# Create a Linear Regression model
 lr = LinearRegression()
 
+# Train the Linear Regression model using training data
 lr.fit(X_train, y_train)
 
+# Predict fare amounts using the testing data
 lr_pred = lr.predict(X_test)
 
+# Calculate the R2 score of Linear Regression
 lr_r2 = r2_score(y_test, lr_pred)
+
+# Calculate Root Mean Squared Error
 lr_rmse = np.sqrt(mean_squared_error(y_test, lr_pred))
+
+# Calculate Mean Absolute Error
 lr_mae = mean_absolute_error(y_test, lr_pred)
 
+# Display Linear Regression model results
 print("Linear Regression")
 print("R2 :", lr_r2)
 print("RMSE :", lr_rmse)
 print("MAE :", lr_mae)
 
+
+# Create a Random Forest Regression model
 rf = RandomForestRegressor(
-    n_estimators=100,
-    max_depth=15,
-    random_state=42,
-    n_jobs=-1
+    n_estimators=100,    # Use 100 decision trees
+    max_depth=15,        # Set maximum depth of each tree to 15
+    random_state=42,     # Fix random state for reproducible results
+    n_jobs=-1            # Use all available CPU cores
 )
 
+# Train the Random Forest model using training data
 rf.fit(X_train, y_train)
 
+# Predict fare amounts using the testing data
 rf_pred = rf.predict(X_test)
 
+# Calculate the R2 score of Random Forest
 rf_r2 = r2_score(y_test, rf_pred)
+
+# Calculate Root Mean Squared Error
 rf_rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
+
+# Calculate Mean Absolute Error
 rf_mae = mean_absolute_error(y_test, rf_pred)
 
+# Display Random Forest model results
 print("Random Forest Regression")
 print("R2 :", rf_r2)
 print("RMSE :", rf_rmse)
 print("MAE :", rf_mae)
 
+
+# Create a DataFrame to compare both machine learning models
 results = pd.DataFrame({
+    # Store model names
     'Model': ['Linear Regression', 'Random Forest'],
+
+    # Store R2 scores of both models
     'R2': [lr_r2, rf_r2],
+
+    # Store RMSE values of both models
     'RMSE': [lr_rmse, rf_rmse],
+
+    # Store MAE values of both models
     'MAE': [lr_mae, rf_mae]
 })
 
+# Display the model comparison table
 print(results)
 
+
+# Create a bar graph to compare R2 scores
 plt.bar(results['Model'], results['R2'])
+
+# Set the graph title
 plt.title("R2 Score Comparison")
+
+# Set the Y-axis label
 plt.ylabel("R2 Score")
+
+# Display the graph
 plt.show()
 
+
+# Create a bar graph to compare RMSE values
 plt.bar(results['Model'], results['RMSE'])
+
+# Set the graph title
 plt.title("RMSE Comparison")
+
+# Set the Y-axis label
 plt.ylabel("RMSE")
+
+# Display the graph
 plt.show()
 
+
+# Create a scatter plot to compare actual and predicted fares
+# Use the first 500 testing samples for visualization
 plt.scatter(
-    y_test[:500],
-    rf_pred[:500],
-    alpha=0.5
+    y_test[:500],       # Actual fare values
+    rf_pred[:500],      # Predicted fare values
+    alpha=0.5           # Set transparency of points
 )
 
+# Set the X-axis label
 plt.xlabel("Actual Fare")
+
+# Set the Y-axis label
 plt.ylabel("Predicted Fare")
+
+# Set the graph title
 plt.title("Actual vs Predicted Uber Fare")
 
+# Display the scatter plot
 plt.show()
 
+
+# Calculate the distance for a new ride using pickup and dropoff coordinates
 distance = haversine(
-    40.73,
-    -73.99,
-    40.76,
-    -73.97
+    40.73,       # Pickup latitude
+    -73.99,      # Pickup longitude
+    40.76,       # Dropoff latitude
+    -73.97       # Dropoff longitude
 )
 
+# Create a DataFrame containing details of a new ride
 new_ride = pd.DataFrame([{
-    'pickup_longitude': -73.99,
-    'pickup_latitude': 40.73,
-    'dropoff_longitude': -73.97,
-    'dropoff_latitude': 40.76,
-    'passenger_count': 2,
-    'distance_km': distance,
-    'hour': 18,
-    'day': 15,
-    'month': 6,
-    'weekday': 2
+    'pickup_longitude': -73.99,   # Pickup longitude
+    'pickup_latitude': 40.73,     # Pickup latitude
+    'dropoff_longitude': -73.97,  # Dropoff longitude
+    'dropoff_latitude': 40.76,    # Dropoff latitude
+    'passenger_count': 2,         # Number of passengers
+    'distance_km': distance,      # Calculated ride distance
+    'hour': 18,                   # Ride pickup hour
+    'day': 15,                    # Ride day
+    'month': 6,                   # Ride month
+    'weekday': 2                  # Ride weekday
 }])
 
+# Predict the fare for the new ride using Random Forest
 predicted_fare = rf.predict(new_ride)
 
+# Display the predicted fare rounded to two decimal places
 print("Predicted Fare = $", round(predicted_fare[0], 2))
 
+
+# Sort model results according to RMSE in ascending order
+# The model with the lowest RMSE will appear first
 print(results.sort_values('RMSE').to_string(index=False))
+
+# Find the row containing the minimum RMSE value
 best_model = results.loc[results['RMSE'].idxmin()]
+
+# Display the name of the best model based on RMSE
 print(f"\nBest model by RMSE: {best_model['Model']}")
+
+# Display the R2 score of the best model with four decimal places
 print(f"R2: {best_model['R2']:.4f}")
+
+# Display the RMSE of the best model with two decimal places
 print(f"RMSE: ${best_model['RMSE']:.2f}")
+
+# Display the MAE of the best model with two decimal places
 print(f"MAE: ${best_model['MAE']:.2f}")
