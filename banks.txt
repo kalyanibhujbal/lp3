@@ -1,135 +1,257 @@
+# Import Path to work with file and folder paths
 from pathlib import Path
+
+# Import pandas to read and process the dataset
 import pandas as pd
 
+# Get the current working directory and locate the CSV dataset
 csv_path = Path.cwd() / "Churn_Modelling.csv"
+
+# Check whether the dataset file exists
 if not csv_path.is_file():
+
+    # Display an error if the dataset is not found
     raise FileNotFoundError(f"Local dataset not found: {csv_path.resolve()}")
 
+# Display the complete path of the dataset
 print("Dataset:", csv_path.resolve())
 
+# Read the CSV file and store it in a DataFrame
 df = pd.read_csv(csv_path)
 
+# Display the first five rows of the dataset
 df.head()
 
+# Display the number of rows and columns in the dataset
 print("Shape:", df.shape)
 
+# Display all column names
 print("\nColumns:")
 print(df.columns)
 
+# Display information about the dataset
+# It includes column names, data types and non-null values
 print("\nInformation:")
 df.info()
 
+# Separate input features by removing unnecessary columns and target column
+# RowNumber, CustomerId and Surname are removed because they are not useful
+# for predicting customer churn
 X = df.drop(columns=["RowNumber", "CustomerId", "Surname", "Exited"])
+
+# Store the target column that we want to predict
+# 0 means customer stayed and 1 means customer exited
 y = df["Exited"]
 
+# Specify the categorical columns
+# These columns contain text categories instead of numerical values
 categorical_features = ["Geography", "Gender"]
+
+# Select all remaining columns as numerical features
 numeric_features = [column for column in X.columns if column not in categorical_features]
 
+# Display the shape of input features
 print("Features shape:", X.shape)
+
+# Display the shape of target values
 print("Target shape:", y.shape)
+
+# Display the percentage distribution of stayed and exited customers
 print("Target distribution (0 = stayed, 1 = exited):")
 print(y.value_counts(normalize=True).rename("proportion"))
 
-# Keep categorical columns as-is; the pipeline encodes them after the split.
+# Display the first five rows of input features
+# Categorical columns are kept as they are for now
 X.head()
 
+# Import train_test_split to divide the dataset into training and testing data
 from sklearn.model_selection import train_test_split
 
+# Split the dataset into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
+
+    # Input features
     X,
+
+    # Target values
     y,
+
+    # 80% data for training and 20% data for testing
     test_size=0.20,
+
+    # Set a fixed random value to get reproducible results
     random_state=42,
+
+    # Maintain the same proportion of stayed and exited customers
     stratify=y
 )
 
+# Display the shape of training data
 print("Training data:", X_train.shape)
+
+# Display the shape of testing data
 print("Testing data:", X_test.shape)
 
+# Import ColumnTransformer to apply different preprocessing to different columns
 from sklearn.compose import ColumnTransformer
+
+# Import OneHotEncoder and StandardScaler
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-# Fit scaling/encoding only on training data to prevent test-set leakage.
+# Create a preprocessing object
+# Scaling and encoding are fitted only on training data to avoid data leakage
 preprocessor = ColumnTransformer(
+
+    # Apply different transformations to different columns
     transformers=[
+
+        # StandardScaler converts numerical features to a similar scale
         ("numeric", StandardScaler(), numeric_features),
+
+        # OneHotEncoder converts categorical text values into numerical columns
+        # handle_unknown="ignore" handles new categories in testing data
         ("categorical", OneHotEncoder(handle_unknown="ignore"), categorical_features),
     ]
 )
 
+# Import MLPClassifier to create an Artificial Neural Network
 from sklearn.neural_network import MLPClassifier
+
+# Import Pipeline to combine preprocessing and the ANN model
 from sklearn.pipeline import Pipeline
 
-# Improvements: regularization, early stopping, a validation split, and
-# leakage-safe preprocessing in one reproducible pipeline.
+# Create a machine learning pipeline
 model = Pipeline(
+
+    # Execute preprocessing first and classification second
     steps=[
+
+        # Apply scaling and categorical encoding
         ("preprocessor", preprocessor),
+
+        # Create the Artificial Neural Network classifier
         ("classifier", MLPClassifier(
+
+            # Create two hidden layers with 32 and 16 neurons
             hidden_layer_sizes=(32, 16),
-            activation="relu", # rectifiedd linear unit (ReLU) activation function
-            solver="adam", #adam optimization algorithm
+
+            # ReLU activation function helps the network learn non-linear patterns
+            activation="relu",
+
+            # Adam optimizer updates weights during training
+            solver="adam",
+
+            # Regularization parameter to reduce overfitting
             alpha=0.001,
+
+            # Process 32 training samples at a time
             batch_size=32,
+
+            # Set maximum number of training iterations
             max_iter=500,
+
+            # Stop training early if validation performance does not improve
             early_stopping=True,
+
+            # Use 15% of training data for validation
             validation_fraction=0.15,
+
+            # Stop if there is no improvement for 15 iterations
             n_iter_no_change=15,
+
+            # Set a fixed random value for reproducible results
             random_state=42,
         )),
     ]
 )
 
+# Display the complete machine learning pipeline
 print(model)
 
+# Train the ANN model using training data
 model.fit(X_train, y_train)
 
+# Display a training success message
 print("Neural network trained successfully!")
+
+# Display the number of iterations used during training
 print("Training iterations:", model.named_steps["classifier"].n_iter_)
 
+# Predict whether customers will stay or leave using testing data
 y_pred = model.predict(X_test)
 
+# Import accuracy_score and balanced_accuracy_score
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 
+# Calculate the accuracy of the model
 accuracy = accuracy_score(y_test, y_pred)
 
+# Display accuracy in decimal and percentage format
 print(f"Accuracy: {accuracy:.4f} ({accuracy * 100:.2f}%)")
+
+# Calculate balanced accuracy
+# It considers the recall of both classes
 print(f"Balanced accuracy: {balanced_accuracy_score(y_test, y_pred):.4f}")
 
+# Import confusion_matrix to evaluate classification results
 from sklearn.metrics import confusion_matrix
 
+# Generate confusion matrix
+# Labels 0 and 1 represent stayed and exited customers
 cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
 
+# Display the confusion matrix
 print("Confusion Matrix:")
 print(cm)
 
+# Import matplotlib for plotting graphs
 import matplotlib.pyplot as plt
 
+# Set the figure size
 plt.figure(figsize=(6, 5))
 
+# Display the confusion matrix as an image
 plt.imshow(cm)
 
+# Add the graph title
 plt.title("Confusion Matrix")
+
+# Add the X-axis label
 plt.xlabel("Predicted")
+
+# Add the Y-axis label
 plt.ylabel("Actual")
 
+# Set X-axis labels
 plt.xticks([0, 1], ["Stayed", "Exited"])
+
+# Set Y-axis labels
 plt.yticks([0, 1], ["Stayed", "Exited"])
 
+# Loop through the rows of the confusion matrix
 for i in range(2):
+
+    # Loop through the columns of the confusion matrix
     for j in range(2):
+
+        # Display the actual count inside each cell
         plt.text(
-            j,
-            i,
-            cm[i, j],
-            ha="center",
-            va="center"
+            j,          # X position
+            i,          # Y position
+            cm[i, j],   # Confusion matrix value
+            ha="center",# Align text horizontally at the center
+            va="center" # Align text vertically at the center
         )
 
+# Display a color bar to represent the values
 plt.colorbar()
+
+# Display the confusion matrix graph
 plt.show()
 
-# Churn is the minority class, so inspect its recall and F1-score as well as accuracy.
+# Import classification_report to calculate precision, recall and F1-score
 from sklearn.metrics import classification_report
 
+# Display the classification report
+# It evaluates the performance of both stayed and exited classes
 print(classification_report(y_test, y_pred))
